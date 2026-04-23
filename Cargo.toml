@@ -14,9 +14,9 @@ name = "iceberg_diff"
 path = "src/lib.rs"
 
 [dependencies]
-iceberg = "0.5"
-iceberg-catalog-rest = "0.5"
-iceberg-datafusion = "0.5"
+iceberg = { git = "https://github.com/apache/iceberg-rust", tag = "v0.5.1" }
+iceberg-catalog-rest = { git = "https://github.com/apache/iceberg-rust", tag = "v0.5.1" }
+iceberg-datafusion = { git = "https://github.com/apache/iceberg-rust", tag = "v0.5.1" }
 
 datafusion = "47"
 arrow = "55"
@@ -39,3 +39,6 @@ serde_json = "1"
 
 [dev-dependencies]
 anyhow = "1"
+parquet = { version = "55", features = ["arrow", "async"] }
+tempfile = "3"
+uuid = { version = "1", features = ["v4"] }

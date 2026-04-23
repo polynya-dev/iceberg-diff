@@ -2161,8 +2161,7 @@ dependencies = [
 [[package]]
 name = "iceberg"
 version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2ad4b76a13ef469b09493330c4360630499949f4984478b77d6a70d252caf8b4"
+source = "git+https://github.com/apache/iceberg-rust?tag=v0.5.1#80feb07423d8c81b055c03fb577ad0e95a55df62"
 dependencies = [
  "anyhow",
  "apache-avro",
@@ -2212,8 +2211,7 @@ dependencies = [
 [[package]]
 name = "iceberg-catalog-rest"
 version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0d744269adcd9a89cea578b6e8443186cb9d5e7d41a47679f3b1d5b71842820e"
+source = "git+https://github.com/apache/iceberg-rust?tag=v0.5.1#80feb07423d8c81b055c03fb577ad0e95a55df62"
 dependencies = [
  "async-trait",
  "chrono",
@@ -2233,8 +2231,7 @@ dependencies = [
 [[package]]
 name = "iceberg-datafusion"
 version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "13dea53f0cb6348ef65d4be41b3401ec21f558071a47ff42906df371b500f012"
+source = "git+https://github.com/apache/iceberg-rust?tag=v0.5.1#80feb07423d8c81b055c03fb577ad0e95a55df62"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2259,11 +2256,14 @@ dependencies = [
  "iceberg",
  "iceberg-catalog-rest",
  "iceberg-datafusion",
+ "parquet",
  "serde_json",
+ "tempfile",
  "thiserror 1.0.69",
  "tokio",
  "tracing",
  "tracing-subscriber",
+ "uuid",
  "xxhash-rust",
 ]
 

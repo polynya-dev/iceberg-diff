@@ -1,25 +1,12 @@
-# Self-contained stack for iceberg-diff TPC-H integration test.
-# Ports are offset from the main pg2iceberg docker-compose.yml so both can run
-# simultaneously on a developer machine.
+# Minimal stack for iceberg-diff TPC-H integration test: MinIO (S3-compatible
+# storage) + iceberg-rest (JDBC-backed REST catalog). No postgres, no
+# pg2iceberg — the test generates TPC-H data locally with tpchgen-cli and
+# writes to Iceberg via iceberg-rust, avoiding a circular dependency on the
+# pipeline iceberg-diff is meant to validate.
+#
+# Ports are offset from the main pg2iceberg compose so both can run in parallel.
 
 services:
-  postgres:
-    image: postgres:16
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: tpch
-    # wal_level=logical is not strictly needed for --snapshot-only but keeps
-    # this stack drop-in compatible with CDC runs.
-    command: ["postgres", "-c", "wal_level=logical", "-c", "max_replication_slots=10", "-c", "max_wal_senders=10"]
-    ports:
-      - "55432:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d tpch"]
-      interval: 2s
-      timeout: 5s
-      retries: 30
-
   minio:
     image: minio/minio
     command: server /data --console-address ":9001"

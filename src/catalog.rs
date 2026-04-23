@@ -6,6 +6,11 @@ use iceberg::table::Table;
 use iceberg::{Catalog, NamespaceIdent, TableIdent};
 use iceberg_catalog_rest::{RestCatalog, RestCatalogConfig};
 
+/// Source of an already-loaded iceberg-rust Catalog. Kept as a trait object so
+/// tests (and future Glue/SQL integrations) can construct a catalog however
+/// they like and pass it straight to `LoadedTable::from_catalog`.
+pub type DynCatalog = Arc<dyn Catalog>;
+
 use crate::error::{Error, Result};
 
 #[derive(Debug, Clone)]
@@ -48,9 +53,76 @@ pub struct TableSpec {
 /// endpoint` from table properties automatically when data files are read.
 pub struct LoadedTable {
     pub spec: TableSpec,
-    pub catalog: Arc<RestCatalog>,
+    pub catalog: DynCatalog,
     pub table: Table,
     pub snapshot: SnapshotRef,
+}
+
+impl LoadedTable {
+    /// Build a `LoadedTable` from an already-constructed catalog + table ident
+    /// + snapshot id. Lets callers bring their own catalog (MemoryCatalog for
+    /// tests, Glue, SQL, etc.) instead of only REST.
+    pub async fn from_catalog(
+        catalog: DynCatalog,
+        namespace: Vec<String>,
+        table: String,
+        snapshot_id: i64,
+    ) -> Result<Self> {
+        let ns = NamespaceIdent::from_strs(namespace.iter().cloned())
+            .map_err(|e| Error::Other(format!("namespace: {e}")))?;
+        let ident = TableIdent::new(ns, table.clone());
+        let tbl = catalog.load_table(&ident).await?;
+        let snapshot = tbl
+            .metadata()
+            .snapshot_by_id(snapshot_id)
+            .cloned()
+            .ok_or_else(|| {
+                Error::Other(format!(
+                    "snapshot {snapshot_id} not found in table {ident}"
+                ))
+            })?;
+        // Synthesize a minimal TableSpec so identity/diagnostic paths still
+        // have something to render. The `catalog` field becomes the URI label
+        // (for trait-object catalogs we use their Debug impl).
+        let spec = TableSpec {
+            catalog: CatalogSpec {
+                uri: format!("dyn:{}", std::any::type_name_of_val(&*catalog)),
+                warehouse: None,
+                auth: Auth::None,
+                extra_props: HashMap::new(),
+            },
+            namespace,
+            table,
+            snapshot_id,
+        };
+        Ok(Self {
+            spec,
+            catalog,
+            table: tbl,
+            snapshot,
+        })
+    }
+
+    /// Same as `from_catalog`, but resolves the table's current snapshot id
+    /// automatically.
+    pub async fn from_catalog_current(
+        catalog: DynCatalog,
+        namespace: Vec<String>,
+        table: String,
+    ) -> Result<Self> {
+        let ns = NamespaceIdent::from_strs(namespace.iter().cloned())
+            .map_err(|e| Error::Other(format!("namespace: {e}")))?;
+        let ident = TableIdent::new(ns, table.clone());
+        let tbl = catalog.load_table(&ident).await?;
+        let snapshot_id = tbl
+            .metadata()
+            .current_snapshot()
+            .map(|s| s.snapshot_id())
+            .ok_or_else(|| {
+                Error::Other(format!("table {ident} has no current snapshot"))
+            })?;
+        Self::from_catalog(catalog, namespace, table, snapshot_id).await
+    }
 }
 
 async fn resolve_current_snapshot(
@@ -58,7 +130,7 @@ async fn resolve_current_snapshot(
     namespace: &[String],
     table: &str,
 ) -> Result<i64> {
-    let rest = LoadedTable::build_catalog(catalog);
+    let rest = LoadedTable::build_rest_catalog(catalog);
     let ns = NamespaceIdent::from_strs(namespace.iter().cloned())
         .map_err(|e| Error::Other(format!("namespace: {e}")))?;
     let ident = TableIdent::new(ns, table.to_string());
@@ -71,7 +143,7 @@ async fn resolve_current_snapshot(
 
 impl LoadedTable {
     pub async fn load(spec: TableSpec) -> Result<Self> {
-        let catalog = Self::build_catalog(&spec.catalog);
+        let catalog: Arc<RestCatalog> = Self::build_rest_catalog(&spec.catalog);
 
         let ns = NamespaceIdent::from_strs(spec.namespace.iter().cloned())
             .map_err(|e| Error::Other(format!("namespace: {e}")))?;
@@ -96,7 +168,9 @@ impl LoadedTable {
             snapshot,
         })
     }
+}
 
+impl LoadedTable {
     /// Convenience: load a table at whatever its current snapshot is. Useful
     /// when you want to diff "the latest" of two tables without having to look
     /// up snapshot ids externally first.
@@ -117,7 +191,7 @@ impl LoadedTable {
 
     /// Build a RestCatalog from a CatalogSpec. Factored out so `load` and
     /// `load_current` share identical auth + vended-creds + props wiring.
-    fn build_catalog(spec: &CatalogSpec) -> Arc<RestCatalog> {
+    fn build_rest_catalog(spec: &CatalogSpec) -> Arc<RestCatalog> {
         let mut props = spec.extra_props.clone();
         props
             .entry("header.X-Iceberg-Access-Delegation".to_string())
