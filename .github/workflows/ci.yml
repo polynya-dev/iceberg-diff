@@ -22,14 +22,16 @@ env:
 
 jobs:
   build:
-    # Fast sanity job — runs without any R2 creds, purely compile + lib tests.
+    # Fast sanity job — runs without any R2 creds. Debug mode only (release
+    # optimization is the expensive part and the scenarios job produces a
+    # release build anyway, cached across runs).
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - run: cargo build --release --workspace --all-targets
-      - run: cargo test --release --lib
+      - run: cargo build          # lib + bins (gen_fixture + iceberg-diff)
+      - run: cargo test --lib     # library unit tests
 
   scenarios:
     # Runs the correctness scenarios against the R2 Data Catalog fixture.
