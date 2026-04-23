@@ -2,9 +2,39 @@
 
 Diff two Iceberg tables. Inspired by https://github.com/datafold/data-diff.
 
+## Install
+
+### Prebuilt binary
+
+```sh
+# pick the asset for your platform from
+#   https://github.com/polynya-dev/iceberg-diff/releases/latest
+# e.g. Linux x86_64:
+curl -fsSL \
+  https://github.com/polynya-dev/iceberg-diff/releases/latest/download/iceberg-diff-x86_64-unknown-linux-musl.tar.gz \
+  | tar -xz -C /usr/local/bin iceberg-diff
+iceberg-diff --help
+```
+
+### Docker
+
+```sh
+docker run --rm ghcr.io/polynya-dev/iceberg-diff:latest \
+  --a-uri ... \
+  --a-table ns.t \
+  --b-uri ... \
+  --b-table ns.t
+```
+
+### From source via cargo
+
+```sh
+cargo install --git https://github.com/polynya-dev/iceberg-diff --bin iceberg-diff
+```
+
 ## Usage
 
-```
+```sh
 iceberg-diff \
   --a-uri https://catalog-a.example/iceberg \
   --a-warehouse wh1 \
@@ -38,6 +68,8 @@ credentials — e.g.:
 
 Exit codes: `0` equal, `1` unequal, `2` schema/partition/PK mismatch,
 `3` runtime error.
+
+On mismatch, currently it will only tell you that it does not match. The actual row diff will be implemented soon.
 
 ## Requirements
 
