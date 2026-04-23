@@ -2,6 +2,7 @@ pub mod bucket;
 pub mod catalog;
 pub mod compare;
 pub mod error;
+pub mod scenarios;
 pub mod schema;
 pub mod shortcut;
 

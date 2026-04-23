@@ -2257,6 +2257,7 @@ dependencies = [
  "iceberg-catalog-rest",
  "iceberg-datafusion",
  "parquet",
+ "serde",
  "serde_json",
  "tempfile",
  "thiserror 1.0.69",

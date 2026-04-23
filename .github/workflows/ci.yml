@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      include_bench:
+        description: "Run the TPC-H benchmark scenario (slow, several minutes)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+  build:
+    # Fast sanity job — runs without any R2 creds, purely compile + lib tests.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release --workspace --all-targets
+      - run: cargo test --release --lib
+
+  scenarios:
+    # Runs the correctness scenarios against the R2 Data Catalog fixture.
+    # Skips gracefully if R2 secrets aren't configured (e.g., PRs from forks).
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Run integration scenarios against R2
+        env:
+          ICEBERG_DIFF_R2_URI: ${{ secrets.ICEBERG_DIFF_R2_URI }}
+          ICEBERG_DIFF_R2_WAREHOUSE: ${{ secrets.ICEBERG_DIFF_R2_WAREHOUSE }}
+          ICEBERG_DIFF_R2_TOKEN: ${{ secrets.ICEBERG_DIFF_R2_TOKEN }}
+          # Bench is opt-in; triggered via workflow_dispatch input.
+          ICEBERG_DIFF_BENCH: ${{ github.event.inputs.include_bench == 'true' && '1' || '' }}
+        run: |
+          if [[ -z "$ICEBERG_DIFF_R2_URI" ]]; then
+            echo "::notice::R2 secrets not configured; scenarios test will self-skip."
+          fi
+          cargo test --test scenarios_integration --release \
+            all_scenarios_match_expected -- --ignored --nocapture

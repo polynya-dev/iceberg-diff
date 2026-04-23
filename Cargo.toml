@@ -35,10 +35,15 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 anyhow = "1"
 thiserror = "1"
+serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+parquet = { version = "55", features = ["arrow", "async"] }
+uuid = { version = "1", features = ["v4"] }
+tempfile = "3"
+
+[[bin]]
+name = "gen_fixture"
+path = "src/bin/gen_fixture.rs"
 
 [dev-dependencies]
 anyhow = "1"
-parquet = { version = "55", features = ["arrow", "async"] }
-tempfile = "3"
-uuid = { version = "1", features = ["v4"] }
