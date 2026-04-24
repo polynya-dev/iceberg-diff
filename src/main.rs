@@ -52,8 +52,11 @@ struct Cli {
     buckets: usize,
     #[arg(long)]
     skip_row_count: bool,
+    /// Opt into stage 4 (data-file-set fingerprint). Off by default because
+    /// it only short-circuits when both sides reference the same data files;
+    /// for typical diffs of independently-written tables it's pure overhead.
     #[arg(long)]
-    skip_file_fingerprint: bool,
+    check_file_fingerprint: bool,
 
     /// Extra catalog property `key=value`, repeatable. Applied to both sides.
     /// Use this to inject S3 credentials when the catalog does not vend them,
@@ -147,7 +150,7 @@ async fn main() -> ExitCode {
     let opts = DiffOptions {
         buckets: cli.buckets,
         skip_row_count: cli.skip_row_count,
-        skip_file_fingerprint: cli.skip_file_fingerprint,
+        check_file_fingerprint: cli.check_file_fingerprint,
         ..Default::default()
     };
 

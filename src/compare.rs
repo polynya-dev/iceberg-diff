@@ -18,8 +18,15 @@ use crate::shortcut;
 pub struct DiffOptions {
     /// Number of hash buckets. Higher = finer drill-down granularity. Default 128.
     pub buckets: usize,
+    /// Skip stage 3 (snapshot-summary row count).
     pub skip_row_count: bool,
-    pub skip_file_fingerprint: bool,
+    /// **Opt-in** stage 4 (data-file set fingerprint). Off by default: the
+    /// shortcut only helps when both sides reference the exact same data
+    /// files (e.g. a cross-catalog clone), which is rare — and when it
+    /// doesn't help, `plan_files` on both sides is pure overhead (~200-500
+    /// ms per diff). Turn on only when you know the data files could be
+    /// shared.
+    pub check_file_fingerprint: bool,
     /// Max in-flight hash tasks between the scan and the aggregate merge.
     pub prefetch_batches: usize,
     /// Data-file concurrency passed to iceberg-rust's TableScan.
@@ -34,7 +41,7 @@ impl Default for DiffOptions {
         Self {
             buckets: DEFAULT_BUCKETS,
             skip_row_count: false,
-            skip_file_fingerprint: false,
+            check_file_fingerprint: false,
             prefetch_batches: par,
             scan_concurrency: par,
         }
@@ -96,8 +103,8 @@ pub async fn diff_tables(
         debug!("stage 3: row counts match or unavailable");
     }
 
-    // Stage 4: file-set fingerprint
-    if !opts.skip_file_fingerprint {
+    // Stage 4: file-set fingerprint (opt-in; see DiffOptions doc)
+    if opts.check_file_fingerprint {
         let (fa, fb) = tokio::try_join!(
             shortcut::collect_file_fingerprint(&a),
             shortcut::collect_file_fingerprint(&b),

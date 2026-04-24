@@ -51,7 +51,7 @@ iceberg-diff \
   [--prop KEY=VALUE]...          # repeatable; applies to both sides
   [--buckets 128]
   [--skip-row-count]             # skip stage 3
-  [--skip-file-fingerprint]      # skip stage 4
+  [--check-file-fingerprint]     # opt into stage 4 (off by default)
 ```
 
 `--a-snapshot`/`--b-snapshot` default to the table's current snapshot if
@@ -89,7 +89,10 @@ Five stages, cheapest → most expensive, short-circuiting at each step:
 2. **Schema + partition spec + PK** — strict compare; mismatch = hard error,
    not a diff result.
 3. **Snapshot summary** — `total-records` differs → UNEQUAL.
-4. **File-set fingerprint** — identical manifest data-file set → EQUAL.
+4. **File-set fingerprint** (opt-in, `--check-file-fingerprint`) — identical
+   manifest data-file set → EQUAL. Off by default: it only helps when both
+   sides reference the same physical files (e.g., a cross-catalog clone);
+   for independently-written tables it's pure `plan_files` overhead.
 5. **Row-hash bucket scan** — the real work. Scan each side once, bucket
    each row by `hash(PK) % N`, sum `hash(row)` per bucket. Two sides match
    iff every bucket's `(sum, count)` pair matches.
