@@ -50,6 +50,10 @@ pub enum ScenarioKind {
     /// Same rows on both sides but B inserted in reverse order. Tests that
     /// hash-bucket aggregation is order-independent.
     EqShuffled,
+    /// Side A is format-version 1, side B is format-version 2. Same logical
+    /// rows. Verifies the diff is format-version-agnostic — useful for
+    /// migration validation (v1 → v2) and future v2 → v3 work.
+    EqCrossVersion,
     /// B is missing one row (id=500). Expect UNEQUAL (stage 3 if summary has
     /// total-records; else stage 5 with per-bucket count mismatch).
     NeqMissingRow,
@@ -95,6 +99,15 @@ pub const ALL_SCENARIOS: &[Scenario] = &[
         table_b: "b",
         expected: ExpectedOutcome::Equal,
         kind: ScenarioKind::EqShuffled,
+    },
+    Scenario {
+        id: "eq_cross_version",
+        ns_a: "eq_cross_version",
+        table_a: "a",
+        ns_b: "eq_cross_version",
+        table_b: "b",
+        expected: ExpectedOutcome::Equal,
+        kind: ScenarioKind::EqCrossVersion,
     },
     Scenario {
         id: "neq_missing_row",

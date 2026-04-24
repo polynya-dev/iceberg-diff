@@ -2,6 +2,11 @@
 
 Diff two Iceberg tables. Inspired by https://github.com/datafold/data-diff.
 
+Potential use cases:
+- Test utility for Iceberg-related tooling
+- Validating Iceberg format version migration
+- Validating blue green upgrade before cutover ([see pg2iceberg](https://github.com/polynya-dev/pg2iceberg/tree/main/example/blue-green))
+
 ## Install
 
 ### Prebuilt binary
@@ -147,6 +152,7 @@ authoritative list):
 |-----------------------|-----------------------------------------------------|------------------|
 | `eq_identical`        | identical to A                                      | Equal            |
 | `eq_shuffled`         | same rows, reverse insertion order                  | Equal            |
+| `eq_cross_version`    | A is format-version 1, B is format-version 2        | Equal            |
 | `neq_missing_row`     | one row dropped                                     | Unequal          |
 | `neq_extra_row`       | one extra row                                       | Unequal          |
 | `neq_cell_modified`   | same rows, one cell value changed                   | Unequal          |

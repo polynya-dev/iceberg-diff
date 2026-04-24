@@ -387,6 +387,75 @@ async fn build_eq_shuffled(catalog: &Arc<RestCatalog>, s: &Scenario) -> Result<(
     build_correctness(catalog, s, schema.clone(), schema, |b| b.reverse(), None).await
 }
 
+/// Build a table with identical synth rows, controlling the Iceberg format
+/// version via `properties["format-version"]`. Side-of-the-world equivalent
+/// of `create_and_write` but parameterized on format version.
+async fn create_and_write_with_version(
+    catalog: &Arc<RestCatalog>,
+    ns: &NamespaceIdent,
+    table_name: &str,
+    schema: IceSchema,
+    batch: RecordBatch,
+    format_version: u32,
+) -> Result<()> {
+    let mut props: HashMap<String, String> = HashMap::new();
+    props.insert("format-version".into(), format_version.to_string());
+
+    let ident = TableIdent::new(ns.clone(), table_name.to_string());
+    let creation = TableCreation::builder()
+        .name(table_name.to_string())
+        .schema(schema)
+        .properties(props)
+        .build();
+    let table = catalog
+        .create_table(ns, creation)
+        .await
+        .with_context(|| format!("create {ident}"))?;
+    println!(
+        "    {table_name}: requested v{format_version}, got {:?}",
+        table.metadata().format_version()
+    );
+
+    let loc_gen = DefaultLocationGenerator::new(table.metadata().clone())?;
+    let name_gen = DefaultFileNameGenerator::new(
+        "data".into(),
+        Some(Uuid::new_v4().to_string()),
+        DataFileFormat::Parquet,
+    );
+    let pq = ParquetWriterBuilder::new(
+        WriterProperties::builder().build(),
+        table.metadata().current_schema().clone(),
+        table.file_io().clone(),
+        loc_gen,
+        name_gen,
+    );
+    let df = DataFileWriterBuilder::new(pq, None, 0);
+    let mut writer = df.build().await?;
+    writer.write(batch).await?;
+    let data_files = writer.close().await?;
+
+    let tx = Transaction::new(&table);
+    let mut action = tx.fast_append(None, vec![])?;
+    action.add_data_files(data_files)?;
+    let tx = action.apply().await?;
+    tx.commit(&**catalog)
+        .await
+        .with_context(|| format!("commit {ident}"))?;
+    Ok(())
+}
+
+async fn build_eq_cross_version(catalog: &Arc<RestCatalog>, s: &Scenario) -> Result<()> {
+    let ns = NamespaceIdent::from_strs([s.ns_a])?;
+    if !prepare_namespace(catalog, &ns, &[s.table_a, s.table_b]).await? {
+        return Ok(());
+    }
+    let schema = synth_iceberg_schema()?;
+    let batch = rows_to_batch(&synth_rows(SYNTH_ROWS), &schema)?;
+    create_and_write_with_version(catalog, &ns, s.table_a, schema.clone(), batch.clone(), 1).await?;
+    create_and_write_with_version(catalog, &ns, s.table_b, schema, batch, 2).await?;
+    Ok(())
+}
+
 async fn build_neq_missing_row(catalog: &Arc<RestCatalog>, s: &Scenario) -> Result<()> {
     let schema = synth_iceberg_schema()?;
     build_correctness(
@@ -865,6 +934,7 @@ async fn main() -> Result<()> {
         match s.kind {
             ScenarioKind::EqIdentical => build_eq_identical(&catalog, s).await?,
             ScenarioKind::EqShuffled => build_eq_shuffled(&catalog, s).await?,
+            ScenarioKind::EqCrossVersion => build_eq_cross_version(&catalog, s).await?,
             ScenarioKind::NeqMissingRow => build_neq_missing_row(&catalog, s).await?,
             ScenarioKind::NeqExtraRow => build_neq_extra_row(&catalog, s).await?,
             ScenarioKind::NeqCellModified => build_neq_cell_modified(&catalog, s).await?,
